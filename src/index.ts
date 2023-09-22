@@ -44,19 +44,18 @@ export function apply(ctx: Context, config: Config) {
   ctx.on('notice/poke', async (session) => {
     if (session.targetId === session.selfId) {
       var oldTime = (await ctx.database.get('favorite',{userid:session.userId},['touchTime']))[0].touchTime;
-      var newTime = session.timestamp;
+      var newTime = new Date();
       var replyCD = config['replyCD']as Eval<Number>*60*1000;
-      if(oldTime==null||newTime-oldTime.getTime()>=replyCD){
+      if(oldTime==null||newTime.getTime()-oldTime.getTime()>=replyCD){
         if ((await ctx.database.stats()).tables.favorite == undefined) {
           DB.initialFavoriteTable(ctx);
         }
         await FavoriteDecide(ctx, session);
         await reply(ctx, session, config);
-        var newTimeN = new Date(newTime);
-        await ctx.database.set('favorite',{userid:session.userId},{touchTime:newTimeN});
+        await ctx.database.set('favorite',{userid:session.userId},{touchTime:newTime});
       }else{
-        var nextTime =new Date(oldTime.getTime()+replyCD-newTime).toLocaleTimeString('zh-cn',{ timeZone: 'UTC' });
-        session.send(`<at id="${session.userId}"/>~\n${config.replyNo}\n(戳一戳好感CD还有${nextTime})`)
+        var nextTime =new Date(oldTime.getTime()+replyCD-newTime.getTime()).toLocaleTimeString('zh-cn',{ timeZone: 'UTC' });
+        session.send(`<at id="${session.userId}"/>~\n${config.replyNo}\n(戳一戳好感CD还有${nextTime})`);
       }
     }
   })
@@ -67,12 +66,12 @@ export function apply(ctx: Context, config: Config) {
     .action(async ({session}) => {
       let data = await DB.queryDB(ctx, session);
       if(data.length<1){
-        return `<at id="${session.userId}"/>小笨蛋，我心里没你~`
+        return `<at id="${session.userId}"/>小笨蛋，我心里没你~`;
       }
       let level = data[0].level;
       let value = data[0].value;
-      let nextvalue = nextValue(level)
-      session.send(`<at id="${session.userId}"/>你的当前好感等级是${level}\n经验值是${value}\n距离下一级还有${nextvalue-value}的经验要刷~`)
+      let nextvalue = nextValue(level);
+      session.send(`<at id="${session.userId}"/>你的当前好感等级是${level}\n经验值是${value}\n距离下一级还有${nextvalue-value}的经验要刷~`);
     })
 }
 async function FavoriteDecide(ctx: Context, session) {
@@ -93,7 +92,7 @@ async function FavoriteDecide(ctx: Context, session) {
       await DB.levelUp(ctx, session);
       level = (await ctx.database.get('favorite', { userid: session.userId }, ['level']))[0].level;  
     }else{
-      session.send(`<at id="${session.userId}"/>怎么可能有人把好感拉满了 我不相信！！！`)
+      session.send(`<at id="${session.userId}"/>怎么可能有人把好感拉满了 我不相信！！！`);
     }
   }
 }
@@ -113,9 +112,9 @@ async function reply(ctx: Context, session, config: Config) {
   ];
   if (level >= 1 && level <= 10) {
     let ran = Random.int(replyArrays[level - 1].length);
-    session.send(`<at id="${session.userId}"/>${replyArrays[level - 1][ran]}`)
+    session.send(`<at id="${session.userId}"/>${replyArrays[level - 1][ran]}`);
   } else {
-    session.send(`<onebot:poke qq="${session.userId}"/>`)
+    session.send(`<onebot:poke qq="${session.userId}"/>`);
   }
 }
 function nextValue(level) {
