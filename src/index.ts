@@ -1,10 +1,15 @@
-import { Context, Dict, Random, Schema } from 'koishi'
+import { Context, Eval, Intersect, Random, Schema} from 'koishi'
 import { DB } from './database'
 export const name = 'touch-favorite'
-export const usage = "QQ戳一戳好感系统\\n功能(暂定)：戳一戳随着好感等级提高回复不同内容，自定义每个等级的随机回复内容，其他功能看反馈再酌情酌情。反馈：可加2864931178."
+export const usage = `QQ戳一戳好感系统
+\n功能(暂定)：戳一戳随着好感等级提高回复不同内容.
+\n自定义每个等级的随机回复内容.
+\n其他功能看反馈再酌情酌情.`
 
 
 export interface Config {
+  'replyCD': Number;
+  'replyNo': String;
   'reply1': Array<string>;
   'reply2': Array<string>;
   'reply3': Array<string>;
@@ -19,6 +24,10 @@ export interface Config {
 
 export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
+    'replyCD':Schema.number().default(60).description('冷却时间(分钟)'),
+    'replyNo':Schema.string().description('CD期间回应'),
+  }).description('好感提升CD'),
+  Schema.object({
     'reply1': Schema.array(String).description('好感等级1台词'),
     'reply2': Schema.array(String).description('好感等级2台词'),
     'reply3': Schema.array(String).description('好感等级3台词'),
@@ -28,26 +37,42 @@ export const Config: Schema<Config> = Schema.intersect([
     'reply7': Schema.array(String).description('好感等级7台词'),
     'reply8': Schema.array(String).description('好感等级8台词'),
     'reply9': Schema.array(String).description('好感等级9台词'),
-    'reply10': Schema.array(String).description('好感等级10台词')
-  }).description('回复台词'),
+    'reply10': Schema.array(String).description('好感等级10台词'),
+  }).description('回应台词')
 ])
 export function apply(ctx: Context, config: Config) {
   ctx.on('notice/poke', async (session) => {
     if (session.targetId === session.selfId) {
-      if ((await ctx.database.stats()).tables.favorite == undefined) {
-        DB.initialFavoriteTable(ctx);
+      var oldTime = (await ctx.database.get('favorite',{userid:session.userId},['touchTime']))[0].touchTime;
+      var newTime = session.timestamp;
+      var replyCD = config['replyCD']as Eval<Number>*60*1000;
+      if(oldTime==null||newTime-oldTime.getTime()>=replyCD){
+        if ((await ctx.database.stats()).tables.favorite == undefined) {
+          DB.initialFavoriteTable(ctx);
+        }
+        await FavoriteDecide(ctx, session);
+        await reply(ctx, session, config);
+        var newTimeN = new Date(newTime);
+        await ctx.database.set('favorite',{userid:session.userId},{touchTime:newTimeN});
+      }else{
+        var nextTime =new Date(oldTime.getTime()+replyCD-newTime).toLocaleTimeString('zh-cn',{ timeZone: 'UTC' });
+        session.send(`<at id="${session.userId}"/>~\n${config.replyNo}\n(戳一戳好感CD还有${nextTime})`)
       }
-      await FavoriteDecide(ctx, session);
-      await reply(ctx, session, config);
     }
+  })
+  ctx.on('ready',async()=>{
+    DB.initialFavoriteTable(ctx);
   })
   ctx.command('bot好感查询', '康康她有多爱你~')
     .action(async ({session}) => {
       let data = await DB.queryDB(ctx, session);
+      if(data.length<1){
+        return `<at id="${session.userId}"/>小笨蛋，我心里没你~`
+      }
       let level = data[0].level;
       let value = data[0].value;
       let nextvalue = nextValue(level)
-      session.send(`<at id="${session.userId}"/>你的当前好感等级是${level}\\n经验值是${value}\\n距离下一级还有${nextvalue-value}的经验要刷~`)
+      session.send(`<at id="${session.userId}"/>你的当前好感等级是${level}\n经验值是${value}\n距离下一级还有${nextvalue-value}的经验要刷~`)
     })
 }
 async function FavoriteDecide(ctx: Context, session) {

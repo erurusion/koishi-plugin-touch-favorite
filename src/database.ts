@@ -1,3 +1,4 @@
+import { timeStamp } from 'console'
 import { Context, Eval } from 'koishi'
 declare module 'koishi' {
     interface Tables {
@@ -8,10 +9,11 @@ export interface Favorite {
     userid: string
     value: number
     level: number
+    touchTime:Date
 }
 export module DB {
     export function initialFavoriteTable(ctx: Context) {
-        ctx.model.extend('favorite', { userid: 'string', value: { type: 'integer', initial: 0, nullable: false }, level: { type: 'integer', initial: 0, nullable: false } }, { unique: ['userid'], primary: ['userid'], autoInc: false });
+        ctx.model.extend('favorite', { userid: 'string', value: { type: 'integer', initial: 0, nullable: false }, level: { type: 'integer', initial: 0, nullable: false },touchTime:{type:'timestamp'} }, { unique: ['userid'], primary: ['userid'], autoInc: false });
     }
     export async function levelUp(ctx, session) {
         await ctx.database.set('favorite', { userid: session.userId }, { 'level': { $add: [{ $: 'level' }, 1] } as Eval<Number>, 'value': 0 })
