@@ -43,10 +43,10 @@ export const Config: Schema<Config> = Schema.intersect([
 export function apply(ctx: Context, config: Config) {
   ctx.on('notice/poke', async (session) => {
     if (session.targetId === session.selfId) {
-      var oldTime = (await ctx.database.get('favorite',{userid:session.userId},['touchTime']))[0].touchTime;
+      var oldTime = (await ctx.database.get('favorite',{userid:session.userId},['touchTime']));
       var newTime = new Date();
       var replyCD = config['replyCD']as Eval<Number>*60*1000;
-      if(oldTime==null||newTime.getTime()-oldTime.getTime()>=replyCD){
+      if(oldTime.length<1||oldTime[0].touchTime==null||newTime.getTime()-oldTime[0].touchTime.getTime()>=replyCD){
         if ((await ctx.database.stats()).tables.favorite == undefined) {
           DB.initialFavoriteTable(ctx);
         }
@@ -54,7 +54,7 @@ export function apply(ctx: Context, config: Config) {
         await reply(ctx, session, config);
         await ctx.database.set('favorite',{userid:session.userId},{touchTime:newTime});
       }else{
-        var nextTime =new Date(oldTime.getTime()+replyCD-newTime.getTime()).toLocaleTimeString('zh-cn',{ timeZone: 'UTC' });
+        var nextTime =new Date(oldTime[0].touchTime.getTime()+replyCD-newTime.getTime()).toLocaleTimeString('zh-cn',{ timeZone: 'UTC' });
         session.send(`<at id="${session.userId}"/>~\n${config.replyNo}\n(戳一戳好感CD还有${nextTime})`);
       }
     }
